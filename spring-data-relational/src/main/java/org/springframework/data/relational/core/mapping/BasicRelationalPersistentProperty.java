@@ -48,15 +48,6 @@ import org.springframework.util.StringUtils;
 public class BasicRelationalPersistentProperty extends AnnotationBasedPersistentProperty<RelationalPersistentProperty>
 		implements RelationalPersistentProperty {
 
-	private static final Map<Class<?>, Class<?>> javaToDbType = new LinkedHashMap<>();
-
-	static {
-
-		javaToDbType.put(Enum.class, String.class);
-		javaToDbType.put(ZonedDateTime.class, String.class);
-		javaToDbType.put(Temporal.class, Date.class);
-	}
-
 	private final RelationalMappingContext context;
 	private final Lazy<String> columnName;
 	private final Lazy<Optional<String>> collectionIdColumnName;
@@ -154,7 +145,7 @@ public class BasicRelationalPersistentProperty extends AnnotationBasedPersistent
 			return columnType;
 		}
 
-		Class componentColumnType = columnTypeForNonEntity(getActualType());
+		Class componentColumnType = JdbcCompatibleTypes.INSTANCE.columnTypeForNonEntity(getActualType());
 
 		while (componentColumnType.isArray()) {
 			componentColumnType = componentColumnType.getComponentType();
@@ -257,15 +248,6 @@ public class BasicRelationalPersistentProperty extends AnnotationBasedPersistent
 			return null;
 		}
 		return idProperty.getColumnType();
-	}
-
-	private Class columnTypeForNonEntity(Class type) {
-
-		return javaToDbType.entrySet().stream() //
-				.filter(e -> e.getKey().isAssignableFrom(type)) //
-				.map(e -> (Class) e.getValue()) //
-				.findFirst() //
-				.orElseGet(() -> ClassUtils.resolvePrimitiveIfNecessary(type));
 	}
 
 	private Class columnTypeForReference() {

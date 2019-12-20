@@ -20,6 +20,9 @@ import static org.assertj.core.api.Assertions.*;
 
 import lombok.Data;
 
+import java.time.Instant;
+import java.util.List;
+
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -28,9 +31,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.jdbc.repository.support.JdbcRepositoryFactory;
 import org.springframework.data.jdbc.testing.TestConfiguration;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
@@ -38,8 +43,6 @@ import org.springframework.test.context.junit4.rules.SpringClassRule;
 import org.springframework.test.context.junit4.rules.SpringMethodRule;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashMap;
 
 /**
  * Very simple use cases for creation and usage of JdbcRepositories.
@@ -244,14 +247,37 @@ public class JdbcRepositoryIntegrationTests {
 		assertThat(repository.findById(-1L)).isEmpty();
 	}
 
+	@Test // DATAJDBC-464
+	public void executeQueryWithParameterRequiringConversion() {
+
+		Instant now = Instant.now();
+
+		DummyEntity first = repository.save(createDummyEntity());
+		first.setPointInTime(now.minusSeconds(1000L));
+		first.setName("first");
+
+		DummyEntity second = repository.save(createDummyEntity());
+		second.setPointInTime(now.plusSeconds(1000L));
+		second.setName("second");
+
+		repository.saveAll(asList(first, second));
+
+		assertThat(repository.after(now)).containsExactly(second);
+	}
+
 	private static DummyEntity createDummyEntity() {
 
 		DummyEntity entity = new DummyEntity();
 		entity.setName("Entity Name");
+
 		return entity;
 	}
 
 	interface DummyEntityRepository extends CrudRepository<DummyEntity, Long> {
+
+		@Query("SELECT * FROM DUMMY_ENTITY WHERE POINT_IN_TIME > :threshhold")
+		List<DummyEntity> after(@Param("threshhold")Instant threshhold);
+
 	}
 
 	@Data
@@ -259,5 +285,6 @@ public class JdbcRepositoryIntegrationTests {
 
 		String name;
 		@Id private Long idProp;
+		Instant pointInTime;
 	}
 }
